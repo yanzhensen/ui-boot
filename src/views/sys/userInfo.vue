@@ -7,7 +7,7 @@
         </el-col>
       </el-row>
       <template>
-        <el-table :data="userData" style="width: 100%" height="650px" highlight-current-row
+        <el-table :data="userPage.userData" style="width: 100%" height="650px" highlight-current-row
                   @row-dblclick="userDataDbClick">
           <el-table-column type="index"></el-table-column>
           <el-table-column align="center" prop="username" label="姓名" width="200px"></el-table-column>
@@ -74,6 +74,15 @@
 
       <el-dialog title="修改用户" :visible.sync="editUserDialogVisible" width="30%" @close="editUserHandleClose"
                  v-dialog-drag v-loading="loading">
+        <div style="margin: 0 auto 15px auto;" align="center">
+          <div>
+            <el-image style="width:150px;height:150px;" :src="editUserForm.url" @click="uploadPhotos">
+              <div slot="error" class="image-slot">
+                <img style="width:150px;height:150px;" src="../../assets/img/userImg.jpg"/>
+              </div>
+            </el-image>
+          </div>
+        </div>
         <div>
           <el-form ref="editUserRef" :model="editUserForm" label-width="80px">
             <el-form-item label="姓名" prop="username"
@@ -107,22 +116,39 @@
           <el-button type="primary" @click="editUserHandle">确 定</el-button>
         </div>
       </el-dialog>
+      <!-- 图片上传组件 -->
+      <common-upload v-if='dialogImgPath' ref='upload' @listenEvent='dialogImgPathClose' :dialog="dialogImgPath"
+                     :save='needSavePhoto' :photoid='photoTableId' :photorandom='photoRandom' :bucket='photoBucket'
+                     :phototype='photoTableType'></common-upload>
+      <!-- 双击弹出对话框   结束 -->
     </el-card>
   </div>
 </template>
 
 <script>
+  import commonUpload from '../../components/common-upload'//  引入上传图片组件
   export default {
     name: "userInfo",
+    components: {
+      'common-upload': commonUpload,
+    },
     data() {
       return {
+        //上传图片
+        dialogImgPath: false,
+        needSavePhoto: false,
+        photoTableId: '',
+        photoTableType: '',
+        photoRandom: '',
+        photoBucket: '',
+
         loading: false,
-        userData: [],
         userPage: {//用户信息数据
           limit: 10,
           cursor: 1,
           total: 0,
           pages: 0,
+          userData: [],
         },
         addUserDialogVisible: false,
         editUserDialogVisible: false,
@@ -142,6 +168,7 @@
           phone: '',
           email: '',
           status: '',
+          url: "",
         },
       }
     },
@@ -149,6 +176,16 @@
       this.getUserPage()
     },
     methods: {
+      uploadPhotos() {//上传图片按钮
+        this.needSavePhoto = true//需要保存按钮
+        this.photoTableId = this.editUserForm.uid
+        this.photoTableType = '用户'
+        this.photoRandom = parseInt((Math.random() * 9 + 1) * 100000000000)
+        this.dialogImgPath = true
+      },
+      dialogImgPathClose() {//上传图片弹窗关闭
+        this.dialogImgPath = false
+      },
       getUserPage() {
         this.loading = true
         this.$axios({
@@ -159,7 +196,7 @@
             cursor: this.userPage.cursor,
           }
         }).then(res => {
-          this.userData = res.data.result.records;
+          this.userPage.userData = res.data.result.records;
           this.userPage.total = res.data.result.total
           this.loading = false;
         }).catch(err => {
@@ -202,8 +239,9 @@
       },
       userDataDbClick(row, column, event) {
         console.log(row)
-        this.editUserDialogVisible = true;
+        this.editUserDialogVisible = true
         this.editLoadUserById(row.uid)
+        this.showPhoto(row.uid)
       },
       editLoadUserById(uid) {
         this.$axios({
@@ -214,6 +252,23 @@
         }).catch(err => {
           this.isError(err)
         });
+      },
+      showPhoto(uid) {
+        this.$axios({
+          method: 'get',
+          url: '/restboot/photo',
+          params: {
+            photoTableId: uid,
+            photoTableType: '用户',
+            photoStatus: '正常'
+          }
+        }).then(res => {
+          if (res.data.result.length == 0) {
+            return
+          }
+          console.info(res)
+          this.editUserForm.url = res.data.result[0].photoUrl
+        })
       },
       editUserHandleClose() {
         Object.assign(this.$data.editUserForm, this.$options.data().editUserForm)//清空输入框
